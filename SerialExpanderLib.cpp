@@ -1,6 +1,4 @@
-// 
-// 
-// 
+// SerialExpanderLib.cpp
 
 #include "SerialExpanderLib.h"
 
@@ -15,7 +13,7 @@ SerialExpanderLib::SerialExpanderLib(HardwareSerial& serial_in, unsigned char r0
 	_manual_mode( false ),
 	_last_byte_at(0)
 {
-	//Configuramos los pines
+	// Configure the mux control pins.
 	pinMode(_r0Pin, OUTPUT);
 	pinMode(_r1Pin, OUTPUT);
 	pinMode(_enablePin, OUTPUT);
@@ -26,7 +24,7 @@ SerialExpanderLib::SerialExpanderLib(HardwareSerial& serial_in, unsigned char r0
 void SerialExpanderLib::begin(bool enabled)
 {
 	_is_init = true;
-	//Activamos el cacharro
+	// Power up the mux.
 	if (enabled)
 		enable();
 
@@ -78,13 +76,11 @@ void SerialExpanderLib::loop()
 	}
 
 
-	//PipedStream& virtual_device_serial = static_cast<PipedStream&>(_current_channel->expander_end());
 	Stream& virtual_device_serial = _current_channel->expander_end();
-	
-	//Si el canal tiene permitida al escritura en el dispositivo
+
+	// If the channel allows writing to the device, flush its outgoing bytes.
 	if (!_current_channel->read_only())
 	{
-		//Enviamos los datos.
 		while (virtual_device_serial.available())
 		{
 			_physical_serial.write(virtual_device_serial.read());
@@ -101,18 +97,18 @@ void SerialExpanderLib::loop()
 #ifdef DEBUG_EXPANDER
 			Serial.printf("SerialExpanderLib loop() first char from channel [%d] activated_at[%lu] inciated_at[%lu] now[%lu]\n", _current_channel->channel(),_channel_activated_at,_channel_inicialization_start_at,millis());
 #endif
-			//Reiniciamos le timeout global, para que se ejecute completo
+			// Restart the global timeout so the channel gets its full window.
 			_channel_activated_at = millis();
 			_channel_inicialization_start_at = millis();
 			_first_character_after_change_arrived = true;
 		}
 	}
 
-	//Evaluamos si se requiere algun cambio de canal
-	if (!_manual_mode && 
-		(_current_channel->is_finish() || //El canal ha indicado que no tiene mas que hacer
-		(_current_channel->is_init() && _fired_channel_timeout() ) ||  //El canal esta iniciado y ha saltado el timeout normal del canal
-		(_current_channel->is_init() && _fired_first_character_timeout()) ))
+	// Decide whether the active channel should be rotated out.
+	if (!_manual_mode &&
+		(_current_channel->is_finish() || // channel reported it is done
+		(_current_channel->is_init() && _fired_channel_timeout() ) ||  // channel time window elapsed
+		(_current_channel->is_init() && _fired_first_character_timeout()) )) // no first byte in time
 	{
 
 #ifdef DEBUG_EXPANDER
@@ -167,7 +163,6 @@ bool SerialExpanderLib::_fired_inicialization_timeout()
 	return false;
 }
 
-//TODO: Obsoleto, revisar
 void SerialExpanderLib::rotate(void)
 {
 	if (_current_channel == nullptr)
@@ -179,7 +174,7 @@ void SerialExpanderLib::rotate(void)
 
 void SerialExpanderLib::add_channel(SerialExpanderChannel* channel)
 {
-	if (channel->channel() > SERIAL_EXPANDER_NUM_CHANNELS)
+	if (channel->channel() < 1 || channel->channel() > SERIAL_EXPANDER_NUM_CHANNELS)
 	{
 #ifdef DEBUG_EXPANDER
 		Serial.printf("SerialExpanderLib ADD CHANNEL ERROR [CH%d] out of bounds, only %d channels\n", channel->channel(), SERIAL_EXPANDER_NUM_CHANNELS);
@@ -203,7 +198,8 @@ void SerialExpanderLib::add_channel(SerialExpanderChannel* channel)
 
 	if (_ready_channel_count == 1)
 	{
-		_physical_serial.begin(channel->baudrate());//TODO: apaño para la primera iteracion
+		// Open the UART for the first channel as it is added.
+		_physical_serial.begin(channel->baudrate());
 		_inicialize_channel((channel->channel() - 1));
 	}
 
@@ -225,6 +221,14 @@ void SerialExpanderLib::__debug_print_channel_status()
 
 void SerialExpanderLib::channel(unsigned char channel)
 {
+	if (_current_channel == nullptr)
+	{
+#ifdef DEBUG_EXPANDER
+		Serial.println("SerialExpanderLib channel() cant do, _current_channel is null");
+#endif
+		return;
+	}
+
 	if ((uint8_t)channel == _current_channel->channel())
 	{
 #ifdef DEBUG_EXPANDER
@@ -233,7 +237,7 @@ void SerialExpanderLib::channel(unsigned char channel)
 		return;
 	}
 
-	if ((uint8_t)channel > SERIAL_EXPANDER_NUM_CHANNELS)
+	if ((uint8_t)channel < 1 || (uint8_t)channel > SERIAL_EXPANDER_NUM_CHANNELS)
 	{
 #ifdef DEBUG_EXPANDER
 		Serial.printf("SerialExpanderLib channel() [CH%d] out of bounds, only %d channels\n", channel, SERIAL_EXPANDER_NUM_CHANNELS);
@@ -285,22 +289,19 @@ void SerialExpanderLib::_update_channel_count()
 
 void SerialExpanderLib::_rotate_next_channel()
 {
-	//Obtenemos los indices, por un lado el canal actual en el que estamos, que es el numero fisico
-	//del canal -1 (que el array empieza en 0)
+	// Current channel index in the array (physical number - 1, array is 0-based).
 	uint8_t last_channel = _current_channel->channel()-1;
-	//current_index representa el canal que estamos probando ahora
+	// current_index is the slot we are probing now.
 	uint8_t current_index = last_channel;
 	SerialExpanderChannel* tmpch = nullptr;
 	do {
-		//Iteramos sobre los canales, empezando en el siguiente al actual
+		// Iterate channels starting from the one after the current.
 		current_index += 1;
-		//Si el canal actual era el ultimo y el nuevo se sale de rango, nos vamos al 0
-		//referencia circular
+		// Wrap around (circular reference).
 		if (current_index >= SERIAL_EXPANDER_NUM_CHANNELS)
 		{
 			current_index = 0;
 		}
-		//Asignamos el canal
 		tmpch = _available_channels[current_index];
 
 		if (tmpch != nullptr && !tmpch->broken())
@@ -308,13 +309,10 @@ void SerialExpanderLib::_rotate_next_channel()
 			break;
 		}
 	}
-	//En caso de que _current_channel no este inicializado (== null) y ademas el canal actual y el nuevo son distintos
-	//seguimos iterando
 	while (last_channel != current_index);
 
-	//Cuando el bucle termina, habremos comprobado todas las posiciones del arrayd e canales y una de estas 2 situaciones se cumple:
-	// - current_index contiene el indice del siguiente canal inicializdo del multiplexor
-	// - current_index contiene el indice del mismo el mento que teniamos activo ya que no existen mas canales validos
+	// When the loop ends, current_index holds either the next valid channel
+	// or the same channel we already had (no other valid channels left).
 	_inicialize_channel(current_index);
 }
 
@@ -372,7 +370,7 @@ void SerialExpanderLib::_inicialize_channel(uint8_t ch)
 #ifdef DEBUG_EXPANDER
 		Serial.printf("SerialExpanderLib _inicialize_channel ERROR [CH%d] is BROKEN\n", ch + 1);
 #endif
-		//El canal esta roto es como si no existiera
+		// A broken channel is treated as if it did not exist.
 		_rotate_next_channel();
 		return;
 	}
@@ -386,11 +384,12 @@ void SerialExpanderLib::_inicialize_channel(uint8_t ch)
 #endif
 		_current_channel->deactivate();
 
+		// Re-open the UART only if the new channel uses a different baud rate.
 		if (_current_channel->baudrate() != _available_channels[ch]->baudrate())
 		{
 			_physical_serial.end();
 			_physical_serial.begin(_available_channels[ch]->baudrate());
-		}	
+		}
 	}
 	_current_channel = _available_channels[ch];
 	
@@ -405,15 +404,13 @@ void SerialExpanderLib::_inicialize_channel(uint8_t ch)
 
 	if ( !_current_channel->is_init() && !_begin_virtual_channel())
 	{
-		//Si hemos llegado aqui y ahora el canal esta roto
-		//quiere decir que ha apsado en este intento del begin, un canal roto no se puede usar y
-		//no se procesara
+		// If the channel just became broken during this begin attempt it cannot
+		// be used, so recompute the available channel count.
 		if (_current_channel->broken())
 		{
-			//recalculamos los canales de que disponemos
 			_update_channel_count();
 		}
-		//no se inicia, lo desactivamos y volveremos a probar si toca...
+		// It did not init: deactivate it and try again later if appropriate.
 		_current_channel->deactivate();
 	}
 }
@@ -436,14 +433,14 @@ bool SerialExpanderLib::_begin_virtual_channel()
 	{
 		loop();
 	}
-	
+
 	if (_current_channel->is_init())
 	{
 #ifdef DEBUG_EXPANDER
 		Serial.printf("SerialExpanderLib _begin_channel(%d) Inicializacion OK in [%lu]ms now[%lu]\n", _current_channel->channel(),(uint32_t)((millis()-start_t)), millis());
 #endif
-		//Marcamos el inicio de actividad del canal para que no salte el timeout de canal
-		//por haber estado un rato inicializando
+		// Reset the channel activity timestamp so the channel timeout is not
+		// triggered by the time spent initializing.
 		while (_physical_serial.read() >= 0);
 		_channel_activated_at = millis();
 		_last_byte_at = millis();
@@ -463,12 +460,11 @@ bool SerialExpanderLib::_begin_virtual_channel()
 
 void SerialExpanderLib::enable()
 {
-	//Enable the muxer chip
+	// Enable the mux chip (enable pin is active low).
 	digitalWrite(_enablePin, 0);
 	_is_enabled = true;
-	//Reactivamos el tiemr general
+	// Reset the channel and first-character timers.
 	_channel_activated_at = millis();
-	//Reactivamos el tiemr de primer caracter
 	_last_byte_at = millis();
 	_first_character_after_change_arrived = false;
 }
@@ -492,5 +488,4 @@ void SerialExpanderLib::disable()
 bool SerialExpanderLib::isEnabled()
 {
 	return _is_enabled;
-	//return !digitalRead(_enablePin);
 }

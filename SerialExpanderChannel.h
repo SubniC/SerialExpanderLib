@@ -92,7 +92,6 @@ public:
 		return _ch_expander;
 	}
 protected:
-	//const?
 	uint16_t first_character_timeout;
 	uint16_t channel_timeout;
 	uint16_t inicialization_timeout;

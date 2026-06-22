@@ -15,14 +15,12 @@ SerialExpanderChannel::SerialExpanderChannel(uint8_t num, uint32_t baudrate, boo
 {
 }
 
+// Default channel loop: echo whatever reaches the device side to Serial.
+// Subclasses typically override this to process the channel's data.
 void SerialExpanderChannel::loop()
 {
-	//TODO: DEBUG TEMPORAL
 	while (_ch_device.available())
 	{
-		//Serial.println("device loop");
-
 		Serial.print((char)_ch_device.read());
-		//Serial.printf("DEVICE #%d: %c\n", channel() , _ch_device.read() );
 	}
 }

@@ -58,9 +58,9 @@ private:
 	bool _is_init;
 
 	uint32_t _channel_activated_at;
-	uint32_t _last_byte_at; //Last recived byte
+	uint32_t _last_byte_at; // timestamp of the last received byte
 	uint32_t _channel_inicialization_start_at;
-	bool _first_character_after_change_arrived; //True if the port just changed
+	bool _first_character_after_change_arrived; // true once the first byte after a channel change arrived
 
 	SerialExpanderChannel* _available_channels[SERIAL_EXPANDER_NUM_CHANNELS];
 	SerialExpanderChannel* _current_channel;

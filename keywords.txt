@@ -1,0 +1,35 @@
+#########################################
+# Syntax Coloring Map For SerialExpanderLib
+#########################################
+
+#########################################
+# Datatypes (KEYWORD1)
+#########################################
+
+SerialExpanderLib		KEYWORD1
+SerialExpanderChannel	KEYWORD1
+
+#########################################
+# Methods and Functions (KEYWORD2)
+#########################################
+
+begin			KEYWORD2
+loop			KEYWORD2
+channel_loop	KEYWORD2
+add_channel		KEYWORD2
+channel			KEYWORD2
+currentChannel	KEYWORD2
+munChannels		KEYWORD2
+rotate			KEYWORD2
+manual			KEYWORD2
+cyclic			KEYWORD2
+enable			KEYWORD2
+disable			KEYWORD2
+isEnabled		KEYWORD2
+device_end		KEYWORD2
+expander_end	KEYWORD2
+broken			KEYWORD2
+is_init			KEYWORD2
+is_finish		KEYWORD2
+read_only		KEYWORD2
+baudrate		KEYWORD2
